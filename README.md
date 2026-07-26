@@ -12,9 +12,9 @@ README for details):
 - **`playwright-service`**: stealth-configured browser automation
   (Xvfb + Chromium + Playwright), exposed via a generic action-dispatch
   HTTP API. See `playwright-service/README.md`.
-- **`collector-service`** (not yet built): pluggable content-collection
-  backends (Google News first) with an async job API for callers. Calls
-  `playwright-service` internally.
+- **`collector-service`**: pluggable content-collection backends (Google
+  News first) with an async job API for callers. Calls `playwright-service`
+  internally. See `collector-service/README.md`.
 
 ## Design
 

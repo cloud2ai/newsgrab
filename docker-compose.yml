@@ -13,6 +13,27 @@ services:
     # ports:
     #   - "18000:8000"
 
+  collector-service:
+    build:
+      context: ./collector-service
+    container_name: newsgrab-collector-service
+    restart: unless-stopped
+    environment:
+      PLAYWRIGHT_SERVICE_URL: http://playwright-service:8000
+    depends_on:
+      - playwright-service
+    networks:
+      - newsgrab-internal
+    volumes:
+      - collector-dedup-cache:/data
+    # No ports published to the host by default -- only reachable from
+    # other containers on newsgrab-internal. Uncomment for local debugging:
+    # ports:
+    #   - "18100:8000"
+
 networks:
   newsgrab-internal:
     driver: bridge
+
+volumes:
+  collector-dedup-cache:
