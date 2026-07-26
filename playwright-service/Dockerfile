@@ -45,7 +45,7 @@ COPY app /app/app
 RUN set -eux; \
     if [ "$USE_MIRROR" = "true" ]; then \
         pip install --break-system-packages --no-cache-dir --timeout 180 --retries 5 \
-            --index-url https://pypi.tuna.tsinghua.edu.cn/simple --trusted-host pypi.tuna.tsinghua.edu.cn .; \
+            --index-url https://pypi.tuna.tsinghua.edu.cn/simple .; \
     else \
         pip install --break-system-packages --no-cache-dir --timeout 180 --retries 5 .; \
     fi

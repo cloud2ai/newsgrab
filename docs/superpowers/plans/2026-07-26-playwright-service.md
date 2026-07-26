@@ -1032,7 +1032,7 @@ COPY app /app/app
 RUN set -eux; \
     if [ "$USE_MIRROR" = "true" ]; then \
         pip install --break-system-packages --no-cache-dir --timeout 180 --retries 5 \
-            --index-url https://pypi.tuna.tsinghua.edu.cn/simple --trusted-host pypi.tuna.tsinghua.edu.cn .; \
+            --index-url https://pypi.tuna.tsinghua.edu.cn/simple .; \
     else \
         pip install --break-system-packages --no-cache-dir --timeout 180 --retries 5 .; \
     fi
@@ -1241,6 +1241,8 @@ A third issue then surfaced: a hash mismatch on a downloaded wheel (`pydantic-co
 A fourth issue: placing that new `ARG USE_MIRROR` between `FROM` and the apt-get `RUN` layer busted Docker's cache for apt-get too (inserting any instruction earlier in the file invalidates every later layer's cache, whether or not that layer references the new instruction), forcing a ~3.5-hour redownload of the entire apt dependency chain over the same slow default `deb.debian.org` path -- on top of, not instead of, the original problem. Fixed by (1) moving `ARG USE_MIRROR` to appear immediately before its first use, right before the apt-get `RUN`, and (2) extending `USE_MIRROR` to also point apt at the Tsinghua Debian mirror (matching `newshub`'s own Dockerfile pattern), so this environment's apt installs are fast AND future Dockerfile edits below this point stop invalidating the apt layer's cache.
 
 A fifth and sixth issue, found by verifying in a throwaway `debian:bookworm-slim` container before re-spending build time: (5) writing the mirror as `https://` failed TLS certificate verification, because this base image has no trusted CA store until `ca-certificates` itself -- one of the packages being installed -- is present; switched to plain `http://` (apt doesn't need TLS for repo authenticity, it verifies GPG signatures instead). (6) `debian:bookworm-slim` ships its default sources in the newer deb822 format at `/etc/apt/sources.list.d/debian.sources`, not the legacy `/etc/apt/sources.list` -- writing only the legacy file left apt querying BOTH the mirror and the still-present slow default, wasting most of the mirror's benefit. Fixed by `rm -f /etc/apt/sources.list.d/debian.sources` before writing the legacy-format mirror file. Verified in isolation: `apt-get update` + a real package install completed in single-digit seconds at over 1 MB/s with only the mirror queried.
+
+Post-task-review follow-up: the pip mirror invocation originally paired `--trusted-host pypi.tuna.tsinghua.edu.cn` with its `https://` index URL, unconditionally disabling certificate verification for that host. Verified in an isolated container that the mirror's certificate is valid and pip works identically without `--trusted-host`; removed the flag.
 
 ## Self-Review Notes
 
