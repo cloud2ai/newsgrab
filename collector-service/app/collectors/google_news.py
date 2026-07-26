@@ -45,12 +45,19 @@ def _get_content_parser() -> ContentParser:
 
 
 async def collect(query: str, **params: Any) -> List[Dict[str, Any]]:
+    """Google News collection: query -> resolve -> dedup -> SSRF-check -> parse.
+
+    A single link's failure at any stage is logged and skipped -- it never
+    aborts the rest of the job. See module docstring for the cache/lazy-
+    singleton rationale.
+    """
     max_results = int(params.get("max_results", 10))
     days = int(params.get("days", 7))
 
     links = await asyncio.to_thread(fetch_google_news_links, query, max_results=max_results, days=days)
 
     dedup_cache = _get_dedup_cache()
+    content_parser = _get_content_parser()
     articles: List[Dict[str, Any]] = []
 
     for link in links:
@@ -65,6 +72,7 @@ async def collect(query: str, **params: Any) -> List[Dict[str, Any]]:
             raw_link, timeout_ms=PLAYWRIGHT_RESOLVE_TIMEOUT_MS, leave_prefix=_GOOGLE_NEWS_LEAVE_PREFIX
         )
         if resolved is None:
+            logger.info("[google_news] skipping link (resolve failed): %s", raw_link)
             continue
         real_url = resolved["final_url"]
         html = resolved["html"]
@@ -76,10 +84,12 @@ async def collect(query: str, **params: Any) -> List[Dict[str, Any]]:
             continue
 
         if not is_safe_url(real_url):
+            logger.info("[google_news] skipping link (rejected by SSRF check): %s", real_url)
             continue
 
-        parsed = _get_content_parser().parse(html, real_url)
+        parsed = content_parser.parse(html, real_url)
         if not parsed or not parsed.get("content"):
+            logger.info("[google_news] skipping link (content extraction failed): %s", real_url)
             continue
 
         article = {
@@ -92,6 +102,7 @@ async def collect(query: str, **params: Any) -> List[Dict[str, Any]]:
         dedup_cache.remember(real_url, raw_link, article)
         articles.append(article)
 
+    logger.info("[google_news] %r -> %s articles from %s links", query, len(articles), len(links))
     return articles
 
 
