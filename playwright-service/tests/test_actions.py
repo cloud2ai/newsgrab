@@ -21,10 +21,12 @@ async def browser():
             await chromium.close()
 
 
+@pytest.mark.integration
 def test_resolve_and_render_is_registered():
     assert ACTIONS["resolve_and_render"] is resolve_and_render
 
 
+@pytest.mark.integration
 async def test_resolve_and_render_waits_out_client_side_redirect(browser, local_http_server):
     local_http_server.routes["/redirect.html"] = (
         b"<!doctype html><html><body>"
@@ -47,6 +49,7 @@ async def test_resolve_and_render_waits_out_client_side_redirect(browser, local_
     assert "Final Page" in result["html"]
 
 
+@pytest.mark.integration
 async def test_resolve_and_render_without_leave_prefix_returns_immediately(browser, local_http_server):
     local_http_server.routes["/final.html"] = b"<html><body><h1>Final Page</h1></body></html>"
 
@@ -60,6 +63,7 @@ async def test_resolve_and_render_without_leave_prefix_returns_immediately(brows
     assert "Final Page" in result["html"]
 
 
+@pytest.mark.integration
 async def test_resolve_and_render_blocks_images_during_redirect_wait(browser, local_http_server):
     local_http_server.routes["/page.html"] = (
         b"<html><body><img src='/pic.png'><h1>hello</h1></body></html>"
@@ -76,6 +80,7 @@ async def test_resolve_and_render_blocks_images_during_redirect_wait(browser, lo
     assert "hello" in result["html"]
 
 
+@pytest.mark.integration
 async def test_execute_action_raises_key_error_for_unknown_action(browser):
     with pytest.raises(KeyError):
         await execute_action(browser, "does_not_exist", {})

@@ -32,6 +32,9 @@ action, navigation timeout, page crash, etc.) -- the HTTP status is always
 action execution.
 
 `GET /healthz` returns `{"status": "ok"|"degraded", "browser_connected": bool}`.
+`/healthz` always returns HTTP 200 even when degraded -- callers doing
+readiness checks (e.g. the future `collector-service`) must inspect the
+`browser_connected` field in the JSON body, not the HTTP status code.
 
 ## Adding a new action
 
@@ -47,7 +50,7 @@ network without adding auth first.
 ## Running locally
 
 ```bash
-pip install -e ".[dev]"
+pip install --break-system-packages -e ".[dev]"
 python -m playwright install chromium  # test-only; production uses system Chromium
 pytest tests/ -v
 ```

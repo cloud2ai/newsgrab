@@ -76,6 +76,7 @@ async def test_connect_with_retry_raises_after_exhausting_attempts():
             await connect_with_retry("http://localhost:9222", attempts=2, delay_sec=0)
 
 
+@pytest.mark.integration
 async def test_isolated_page_hides_webdriver_flag():
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(headless=True)
@@ -89,6 +90,7 @@ async def test_isolated_page_hides_webdriver_flag():
     assert webdriver_flag is None
 
 
+@pytest.mark.integration
 async def test_isolated_page_blocks_image_and_stylesheet_requests(local_http_server):
     local_http_server.routes["/page.html"] = (
         b"<html><body><img src='/pic.png'>"
@@ -110,6 +112,7 @@ async def test_isolated_page_blocks_image_and_stylesheet_requests(local_http_ser
     assert "/page.html" in local_http_server.request_log
 
 
+@pytest.mark.integration
 async def test_isolated_page_contexts_do_not_share_cookies(local_http_server):
     local_http_server.routes["/x.html"] = b"<html><body>x</body></html>"
 

@@ -25,15 +25,19 @@ async def resolve_and_render(page: Page, params: Dict[str, Any]) -> Dict[str, An
     while this substring is still in the URL" marker -- callers resolving
     Google News links pass "/rss/articles" or similar; this function has
     no built-in knowledge of any specific news source.
+
+    `timeout_ms` bounds the ENTIRE call (navigation + redirect wait), not
+    each phase separately -- both share one wall-clock deadline computed
+    before navigation starts.
     """
     url = params["url"]
     timeout_ms = int(params.get("timeout_ms", 30000))
     leave_prefix = params.get("leave_prefix")
 
+    deadline = time.monotonic() + (timeout_ms / 1000)
     await page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
 
     if leave_prefix:
-        deadline = time.monotonic() + (timeout_ms / 1000)
         while leave_prefix in page.url and time.monotonic() < deadline:
             await asyncio.sleep(1)
 
