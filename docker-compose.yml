@@ -1,0 +1,18 @@
+name: newsgrab
+
+services:
+  playwright-service:
+    build:
+      context: ./playwright-service
+    container_name: newsgrab-playwright-service
+    restart: unless-stopped
+    networks:
+      - newsgrab-internal
+    # No ports published to the host by default -- only reachable from
+    # other containers on newsgrab-internal. Uncomment for local debugging:
+    # ports:
+    #   - "18000:8000"
+
+networks:
+  newsgrab-internal:
+    driver: bridge
