@@ -11,7 +11,7 @@
 起因：用户在 `daily_stock_analysis`（股票分析系统）里完成了一个 Google News 采集插件（`plugins/google_news_collector/`，进程内 import 方式），已完整测试+审查通过，但审查过程中发现进程内集成本质上无法彻底解决依赖环境共享风险（`newspaper3k`/`newspaper4k` 包名冲突、全局 `socket` 超时状态污染等），只能不断打补丁应对。用户决定改为完全独立的服务，主项目通过 API 调用，不再进程内 import 任何采集代码。该分支（`feat/google-news-collector-plugin`）暂不合入 `daily_stock_analysis`。
 
 用户另有一个已验证的项目 `newshub`（`/home/ubuntu/workspace/newshub_workspace/newshub`），其中：
-- `articlehub` 的采集管道（gnews 查询 + Browserless 跳转解析 + 内容解析 fallback）验证了"四路→三路内容解析 + SSRF 防护"这套逻辑的可用性——本次**参考思路重写**，不直接照搬代码，以适配新架构（跳转解析这次交给 `playwright-service`，不再需要在采集逻辑里自己 monkeypatch gnews 的 URL 处理）。
+- `articlehub` 的采集管道（gnews 查询 + Browserless 跳转解析 + 内容解析 fallback）验证了"四路→三路内容解析 + SSRF 防护"这套逻辑的可用性——本次**参考思路重写**，不直接照搬代码，以适配新架构（跳转解析这次交给 `playwright-service`；gnews 自身的 URL monkeypatch 仍需保留，见 §4.3 的实现落地修正）。
 - `newsbot/browser/`（一个独立的浏览器自动化容器封装）验证了"Xvfb + Chromium + `playwright_stealth` + 手动覆盖 `navigator.webdriver`/`plugins`/`languages` + 特定 Chrome flags（如 `--disable-blink-features=AutomationControlled`）"这套反检测配置真实有效——用户在 newshub 引入 Browserless/这套配置后文章生成量大幅提升。**这套"让浏览器看起来像真人"的配方是本次要直接搬过来复用的核心资产**，而不是 `newsbot` 的容器拆分方式本身（`newsbot` 用的是"每任务动态起一次性容器"的池模型，那是为多用户隔离设计的，newsgrab 不需要）。
 - `newsbot/newsbot_manager`（Django 管理远程发布节点）与本次无关，未参考。
 - `trendforge` 的"智能采集"（多角度拆解、多语言 ReAct 检索、正反观点分析）是用户已有的成熟实现，本次**不涉及**，仅作为该能力未来演进方向的背景参考。
@@ -66,7 +66,7 @@
 ### 4.3 Google News 后端
 
 - 参考（不照搬）`daily_stock_analysis` 分支里 `gnews_collector.py`/`content_parser.py`/`url_safety.py` 的思路，重写以适配新架构：
-  - gnews 查询关键词、拿候选链接列表——不再需要对 gnews 库做 monkeypatch 避免它自己解析跳转链接，因为跳转解析这次统一交给 `playwright-service`。
+  - gnews 查询关键词、拿候选链接列表——跳转解析这次统一交给 `playwright-service`。**实现落地时发现仍需保留 gnews 的 URL monkeypatch**：无论最终由谁做跳转解析，gnews 库自身默认会对每条链接用阻塞的 `requests.head()` 去解析，在代理环境下可能卡 146-292 秒；因此 monkeypatch 仍然需要，只是把它的返回值从"跳过解析、保留原始链接"变成显式让 gnews 只返回未解析的原始链接，解析工作完全交给 `playwright-service`。这是实现阶段对本节描述的修正，非架构漂移。
   - 内容解析：三路 fallback（GNE / trafilatura / readability-lxml，与分支决策一致，不引入 newspaper4k）。
   - SSRF 校验：对 `playwright-service` 返回的最终 URL 做私有/内网地址校验，逻辑思路与分支里的 `url_safety.py` 一致，重新实现。
 
