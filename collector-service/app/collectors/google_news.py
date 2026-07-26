@@ -50,6 +50,14 @@ async def collect(query: str, **params: Any) -> List[Dict[str, Any]]:
     A single link's failure at any stage is logged and skipped -- it never
     aborts the rest of the job. See module docstring for the cache/lazy-
     singleton rationale.
+
+    If `fetch_google_news_links` found zero candidate links, that's a normal
+    "no recent news" outcome and this returns `[]`. But if it found one or
+    more candidate links and *every one* of them subsequently failed (resolve
+    error, SSRF rejection, content-extraction failure) so zero articles came
+    out, that's treated as a job failure: raises `RuntimeError` so callers
+    (see `app.main._run_job`) mark the job `failed` instead of `done` + `[]`,
+    per design spec section 6.
     """
     max_results = int(params.get("max_results", 10))
     days = int(params.get("days", 7))
@@ -103,6 +111,12 @@ async def collect(query: str, **params: Any) -> List[Dict[str, Any]]:
         articles.append(article)
 
     logger.info("[google_news] %r -> %s articles from %s links", query, len(articles), len(links))
+
+    if links and not articles:
+        raise RuntimeError(
+            f"all {len(links)} candidate link(s) failed to yield an article for query {query!r}"
+        )
+
     return articles
 
 

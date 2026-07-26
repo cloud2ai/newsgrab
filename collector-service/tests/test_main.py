@@ -24,6 +24,17 @@ def test_get_job_unknown_id_returns_404():
     assert response.status_code == 404
 
 
+def test_google_news_backend_is_registered_via_real_app_import_graph():
+    """Regression test for the bug fixed in db2db7b: app.main only imports
+    from app.collectors.base, so google_news's self-registration only
+    happens if app/collectors/__init__.py explicitly imports it. Deliberately
+    does NOT import app.collectors.google_news directly here -- that would
+    mask the exact bug this test exists to catch."""
+    client = TestClient(app)
+    response = client.post("/jobs", json={"backend": "google_news", "query": "x"})
+    assert response.status_code == 201
+
+
 def test_create_and_poll_job_with_echo_backend():
     client = TestClient(app)
     response = client.post("/jobs", json={"backend": "echo", "query": "hello"})

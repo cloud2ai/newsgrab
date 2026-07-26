@@ -3,6 +3,8 @@ the sequencing/skip logic in collect() itself -- each dependency's own
 real behavior is covered by its own task's tests."""
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 import app.collectors.google_news as google_news_module
 
 
@@ -30,18 +32,21 @@ async def test_collect_uses_raw_link_cache_hit_without_calling_playwright():
 
 
 async def test_collect_skips_link_that_fails_to_resolve():
+    """A lone failing link means all candidate links failed -- collect() must
+    raise so the job ends up `failed` rather than `done` + `[]`."""
     cache_patch, mock_cache = _patch_dedup_cache()
 
     with patch.object(google_news_module, "fetch_google_news_links", return_value=[
         {"link": "https://news.google.com/rss/1", "title": "t1", "published_date": "d1"}
     ]), cache_patch, \
          patch.object(google_news_module, "resolve_and_render", new=AsyncMock(return_value=None)):
-        result = await google_news_module.collect("贵州茅台")
-
-    assert result == []
+        with pytest.raises(RuntimeError):
+            await google_news_module.collect("贵州茅台")
 
 
 async def test_collect_skips_link_rejected_by_ssrf_check():
+    """A lone SSRF-rejected link means all candidate links failed -- collect()
+    must raise so the job ends up `failed` rather than `done` + `[]`."""
     cache_patch, mock_cache = _patch_dedup_cache()
 
     with patch.object(google_news_module, "fetch_google_news_links", return_value=[
@@ -51,12 +56,13 @@ async def test_collect_skips_link_rejected_by_ssrf_check():
              "final_url": "http://10.0.0.5/internal", "html": "<html></html>",
          })), \
          patch.object(google_news_module, "is_safe_url", return_value=False):
-        result = await google_news_module.collect("贵州茅台")
-
-    assert result == []
+        with pytest.raises(RuntimeError):
+            await google_news_module.collect("贵州茅台")
 
 
 async def test_collect_skips_link_when_content_extraction_fails():
+    """A lone content-extraction failure means all candidate links failed --
+    collect() must raise so the job ends up `failed` rather than `done` + `[]`."""
     cache_patch, mock_cache = _patch_dedup_cache()
 
     with patch.object(google_news_module, "fetch_google_news_links", return_value=[
@@ -68,6 +74,37 @@ async def test_collect_skips_link_when_content_extraction_fails():
          patch.object(google_news_module, "is_safe_url", return_value=True), \
          patch.object(google_news_module, "_get_content_parser") as mock_get_parser:
         mock_get_parser.return_value.parse.return_value = None
+        with pytest.raises(RuntimeError):
+            await google_news_module.collect("贵州茅台")
+
+
+async def test_collect_continues_past_one_failed_link_when_another_succeeds():
+    """Regression guard for the skip-one-continue behavior: one link fails to
+    resolve, the other succeeds all the way through -- collect() must return
+    only the successful article, not raise."""
+    cache_patch, mock_cache = _patch_dedup_cache()
+
+    with patch.object(google_news_module, "fetch_google_news_links", return_value=[
+        {"link": "https://news.google.com/rss/1", "title": "t1", "published_date": "d1"},
+        {"link": "https://news.google.com/rss/2", "title": "t2", "published_date": "d2"},
+    ]), cache_patch, \
+         patch.object(google_news_module, "resolve_and_render", new=AsyncMock(side_effect=[
+             None,
+             {"final_url": "https://real-site.example/b", "html": "<html>content</html>"},
+         ])), \
+         patch.object(google_news_module, "is_safe_url", return_value=True), \
+         patch.object(google_news_module, "_get_content_parser") as mock_get_parser:
+        mock_get_parser.return_value.parse.return_value = {"title": "Real Title", "content": "full body text"}
+        result = await google_news_module.collect("贵州茅台")
+
+    assert len(result) == 1
+    assert result[0]["url"] == "https://real-site.example/b"
+
+
+async def test_collect_returns_empty_list_when_no_links_found():
+    """fetch_google_news_links returning [] is a normal "no recent news"
+    outcome -- collect() must return [] without raising."""
+    with patch.object(google_news_module, "fetch_google_news_links", return_value=[]):
         result = await google_news_module.collect("贵州茅台")
 
     assert result == []
