@@ -995,25 +995,48 @@ ENV DEBIAN_FRONTEND=noninteractive \
     DISPLAY=:99 \
     PYTHONUNBUFFERED=1
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    chromium \
-    xvfb \
-    python3 \
-    python3-pip \
-    tini \
-    curl \
-    fonts-noto-cjk \
-    fonts-wqy-zenhei \
+# Set to "false" to install OS/Python packages from the default upstream
+# sources instead of the Tsinghua mirrors (useful outside mainland-China
+# network paths). Declared right before its first use so it never sits
+# between FROM and the (expensive, rarely-changing) apt-get layer below --
+# an ARG inserted earlier in the file busts every later layer's cache even
+# if that layer doesn't reference the ARG at all.
+ARG USE_MIRROR=true
+
+RUN set -eux; \
+    if [ "$USE_MIRROR" = "true" ]; then \
+        rm -f /etc/apt/sources.list.d/debian.sources; \
+        printf '%s\n' \
+            "deb http://mirrors.tuna.tsinghua.edu.cn/debian/ bookworm main contrib non-free non-free-firmware" \
+            "deb http://mirrors.tuna.tsinghua.edu.cn/debian/ bookworm-updates main contrib non-free non-free-firmware" \
+            "deb http://mirrors.tuna.tsinghua.edu.cn/debian-security/ bookworm-security main contrib non-free non-free-firmware" \
+            > /etc/apt/sources.list; \
+    fi; \
+    apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        chromium \
+        xvfb \
+        python3 \
+        python3-pip \
+        tini \
+        curl \
+        fonts-noto-cjk \
+        fonts-wqy-zenhei \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /tmp/chrome-data
 
 WORKDIR /app
 
 COPY pyproject.toml .
-RUN pip install --break-system-packages --no-cache-dir .
-
 COPY app /app/app
+RUN set -eux; \
+    if [ "$USE_MIRROR" = "true" ]; then \
+        pip install --break-system-packages --no-cache-dir --timeout 180 --retries 5 \
+            --index-url https://pypi.tuna.tsinghua.edu.cn/simple --trusted-host pypi.tuna.tsinghua.edu.cn .; \
+    else \
+        pip install --break-system-packages --no-cache-dir --timeout 180 --retries 5 .; \
+    fi
+
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
@@ -1206,6 +1229,18 @@ git commit -m "docs: add docker-compose orchestration and READMEs for playwright
 ```
 
 ---
+
+## Post-Hoc Correction (found during Task 5 execution)
+
+Task 5's original Dockerfile ran `COPY pyproject.toml .` + `RUN pip install .` *before* `COPY app /app/app`, so `pip install .` failed with `error: package directory 'app' does not exist` (setuptools' `packages = ["app"]` had nothing to find yet). Real docker build logs (`docker buildx history logs`) confirmed this after ~2.4 hours of apt package installation had already completed and cached successfully — only the final `pip install .` step was broken. Fixed by moving `COPY app /app/app` before the `pip install .` line, in both this plan and the actual `playwright-service/Dockerfile` on disk. This does cost the "app code changes don't invalidate the dependency-install layer" caching optimization, but correctness comes first, and this project's build isn't iterated on frequently enough for that caching to matter.
+
+A second, unrelated issue surfaced on retry: this sandbox's network occasionally times out mid-download on large wheels (Playwright's is ~47MB), producing `pip._vendor.urllib3.exceptions.ReadTimeoutError`. Added `--timeout 180 --retries 5` to the `pip install` invocation for resilience against this class of transient failure.
+
+A third issue then surfaced: a hash mismatch on a downloaded wheel (`pydantic-core`), consistent with a corrupted/truncated download over the same very slow direct-to-pythonhosted.org path (observed throughput as low as ~30 KB/s). Switched to the Tsinghua PyPI mirror (the same one used by the sibling `newshub`/`daily_stock_analysis` Dockerfiles), gated behind a `USE_MIRROR` build arg (default `true`) so the image remains buildable outside mainland-China network paths by passing `--build-arg USE_MIRROR=false`.
+
+A fourth issue: placing that new `ARG USE_MIRROR` between `FROM` and the apt-get `RUN` layer busted Docker's cache for apt-get too (inserting any instruction earlier in the file invalidates every later layer's cache, whether or not that layer references the new instruction), forcing a ~3.5-hour redownload of the entire apt dependency chain over the same slow default `deb.debian.org` path -- on top of, not instead of, the original problem. Fixed by (1) moving `ARG USE_MIRROR` to appear immediately before its first use, right before the apt-get `RUN`, and (2) extending `USE_MIRROR` to also point apt at the Tsinghua Debian mirror (matching `newshub`'s own Dockerfile pattern), so this environment's apt installs are fast AND future Dockerfile edits below this point stop invalidating the apt layer's cache.
+
+A fifth and sixth issue, found by verifying in a throwaway `debian:bookworm-slim` container before re-spending build time: (5) writing the mirror as `https://` failed TLS certificate verification, because this base image has no trusted CA store until `ca-certificates` itself -- one of the packages being installed -- is present; switched to plain `http://` (apt doesn't need TLS for repo authenticity, it verifies GPG signatures instead). (6) `debian:bookworm-slim` ships its default sources in the newer deb822 format at `/etc/apt/sources.list.d/debian.sources`, not the legacy `/etc/apt/sources.list` -- writing only the legacy file left apt querying BOTH the mirror and the still-present slow default, wasting most of the mirror's benefit. Fixed by `rm -f /etc/apt/sources.list.d/debian.sources` before writing the legacy-format mirror file. Verified in isolation: `apt-get update` + a real package install completed in single-digit seconds at over 1 MB/s with only the mirror queried.
 
 ## Self-Review Notes
 
