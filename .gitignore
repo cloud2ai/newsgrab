@@ -1,0 +1,3 @@
+# Local dev override (e.g. exposing ports for host-side testing) --
+# never committed, docker-compose merges it automatically if present.
+docker-compose.override.yml

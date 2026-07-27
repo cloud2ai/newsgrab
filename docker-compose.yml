@@ -6,6 +6,22 @@ services:
       context: ./playwright-service
     container_name: newsgrab-playwright-service
     restart: unless-stopped
+    # Passed through only if set in the host/deploy environment -- absent
+    # by default, so a normal deployment with no proxy is unaffected.
+    # Chromium needs this as an explicit --proxy-server flag (see
+    # entrypoint.sh); it does not read these env vars itself the way
+    # curl/requests do.
+    environment:
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      https_proxy: ${https_proxy:-}
+      http_proxy: ${http_proxy:-}
+      # Without this, localhost/internal-network traffic (health checks,
+      # collector-service -> playwright-service) would ALSO get routed
+      # through the external proxy above -- only genuine outbound internet
+      # requests should go through it.
+      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,::1,playwright-service,collector-service}
+      no_proxy: ${no_proxy:-localhost,127.0.0.1,::1,playwright-service,collector-service}
     networks:
       - newsgrab-internal
     # No ports published to the host by default -- only reachable from
@@ -20,6 +36,22 @@ services:
     restart: unless-stopped
     environment:
       PLAYWRIGHT_SERVICE_URL: http://playwright-service:8000
+      # Pass-through only -- absent by default, so collector-service keeps
+      # its own built-in default (en/US, see app/config.py) unless the
+      # deployer opts in to a different Google News edition.
+      GOOGLE_NEWS_LANGUAGE: ${GOOGLE_NEWS_LANGUAGE:-}
+      GOOGLE_NEWS_REGION: ${GOOGLE_NEWS_REGION:-}
+      # gnews's own outbound requests (querying the Google News RSS feed)
+      # go through Python's `requests`, which already honors these env vars
+      # automatically -- no code change needed here, only pass-through.
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      https_proxy: ${https_proxy:-}
+      http_proxy: ${http_proxy:-}
+      # See playwright-service's NO_PROXY comment -- same reasoning applies
+      # to collector-service's own calls to playwright-service.
+      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,::1,playwright-service,collector-service}
+      no_proxy: ${no_proxy:-localhost,127.0.0.1,::1,playwright-service,collector-service}
     depends_on:
       - playwright-service
     networks:

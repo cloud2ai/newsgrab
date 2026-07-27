@@ -4,8 +4,13 @@ import os
 PLAYWRIGHT_SERVICE_URL = os.environ.get("PLAYWRIGHT_SERVICE_URL", "http://localhost:8000")
 PLAYWRIGHT_RESOLVE_TIMEOUT_MS = int(os.environ.get("PLAYWRIGHT_RESOLVE_TIMEOUT_MS", "20000"))
 
-GOOGLE_NEWS_LANGUAGE = os.environ.get("GOOGLE_NEWS_LANGUAGE", "en")
-GOOGLE_NEWS_REGION = os.environ.get("GOOGLE_NEWS_REGION", "US")
+# `or` (not dict.get's default arg) so an empty string -- which docker-compose
+# materializes as the container's env var value when the deployer's shell
+# never set it, per the `${GOOGLE_NEWS_LANGUAGE:-}` pass-through in
+# docker-compose.yml -- still falls back to the built-in default, rather
+# than silently becoming an invalid empty language/region code for gnews.
+GOOGLE_NEWS_LANGUAGE = os.environ.get("GOOGLE_NEWS_LANGUAGE") or "en"
+GOOGLE_NEWS_REGION = os.environ.get("GOOGLE_NEWS_REGION") or "US"
 EXCLUDE_NEWS_SOURCE = ["zdnet.com"]
 REDUNDANT_RATE = 3
 MAX_RESULTS = 20
