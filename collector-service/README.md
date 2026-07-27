@@ -63,3 +63,16 @@ docker compose up -d
 curl -X POST http://localhost:18100/jobs -H "Content-Type: application/json" \
   -d '{"backend": "google_news", "query": "your query here"}'  # only if you uncommented the ports mapping
 ```
+
+## Configuration
+
+- `GOOGLE_NEWS_LANGUAGE`/`GOOGLE_NEWS_REGION`: which Google News edition
+  `gnews` queries (defaults to `en`/`US`). Set to e.g. `zh-CN`/`CN` for
+  Chinese-language results -- unset means English/US results even for a
+  Chinese-language query, not an error, so this is easy to forget.
+- `HTTPS_PROXY`/`HTTP_PROXY` (and lowercase forms): if your deployment needs
+  an egress proxy, `gnews`'s own `requests`-based feed queries honor these
+  automatically -- no code change needed, just set them in the environment
+  (see `playwright-service/README.md`'s proxy section for why
+  `NO_PROXY`/`no_proxy` matters too, and why `playwright-service` itself
+  needs an explicit flag rather than just the env var).

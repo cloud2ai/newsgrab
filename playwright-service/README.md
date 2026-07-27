@@ -63,3 +63,19 @@ curl http://localhost:18000/healthz  # only if you uncommented the ports mapping
 ```
 
 **Build-time mirror configuration:** The Dockerfile defaults to `USE_MIRROR=true`, which routes both `apt-get` and `pip install` through Tsinghua mirrors (`mirrors.tuna.tsinghua.edu.cn` for apt, `pypi.tuna.tsinghua.edu.cn` for pip) during the Docker build. This default was chosen for faster builds inside mainland China, as this project's development sandbox experienced very slow and unreliable direct connectivity to `deb.debian.org` and `files.pythonhosted.org`. If you are building this image in a region with good connectivity to official upstream sources, or prefer to use them directly, pass `--build-arg USE_MIRROR=false` to the build command to disable the mirrors.
+
+## Runtime proxy support
+
+If outbound internet access in your deployment goes through an HTTP(S)
+proxy (common behind corporate networks, CI runners, or egress-restricted
+sandboxes), set `HTTPS_PROXY`/`HTTP_PROXY` (or the lowercase forms) in the
+environment before `docker compose up`. Chromium does not read these env
+vars itself the way `curl`/`requests` do, so `entrypoint.sh` translates
+whichever is set into an explicit `--proxy-server` flag. If you set a
+proxy, also set `NO_PROXY`/`no_proxy` to exclude at least `localhost`,
+`127.0.0.1`, and the other service names in your compose file (e.g.
+`playwright-service`, `collector-service`) -- otherwise internal
+service-to-service and health-check traffic gets routed through the
+external proxy too, which is both wrong and wasteful. `docker-compose.yml`'s
+own `NO_PROXY` default already includes both service names for this reason.
+No proxy vars set at all (the default) leaves this service unaffected.
