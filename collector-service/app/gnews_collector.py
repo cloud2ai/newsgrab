@@ -48,6 +48,8 @@ def fetch_google_news_links(
     keyword: str,
     max_results: int = 10,
     days: int = 7,
+    language: Optional[str] = None,
+    region: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Query Google News for `keyword` and return raw links (no content).
 
@@ -57,6 +59,8 @@ def fetch_google_news_links(
     Returns a list of {link, title, published_date} dicts, filtered to
     articles published within the last `days` days. Returns an empty list
     on any gnews failure -- callers should treat this as "no links found".
+    `language`/`region` override the deployment's GOOGLE_NEWS_LANGUAGE/
+    GOOGLE_NEWS_REGION config for this call only, when given.
     """
     if not keyword or not keyword.strip():
         return []
@@ -65,8 +69,8 @@ def fetch_google_news_links(
     socket.setdefaulttimeout(config.GNEWS_FETCH_TIMEOUT)
     try:
         g = GNews(
-            language=config.GOOGLE_NEWS_LANGUAGE,
-            country=config.GOOGLE_NEWS_REGION,
+            language=language or config.GOOGLE_NEWS_LANGUAGE,
+            country=region or config.GOOGLE_NEWS_REGION,
             max_results=max(max_results * config.REDUNDANT_RATE, config.MAX_RESULTS),
             exclude_websites=config.EXCLUDE_NEWS_SOURCE,
         )

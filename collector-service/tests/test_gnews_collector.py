@@ -57,6 +57,37 @@ def test_fetch_google_news_links_returns_empty_on_gnews_exception():
         assert fetch_google_news_links("贵州茅台") == []
 
 
+def test_fetch_google_news_links_uses_config_defaults_when_language_region_omitted():
+    from app.gnews_collector import fetch_google_news_links
+    from app import config
+
+    fake_gnews = MagicMock()
+    fake_gnews.get_news.return_value = []
+
+    with patch("app.gnews_collector.GNews", return_value=fake_gnews) as mock_gnews_cls:
+        fetch_google_news_links("贵州茅台")
+
+    mock_gnews_cls.assert_called_once()
+    _, kwargs = mock_gnews_cls.call_args
+    assert kwargs["language"] == config.GOOGLE_NEWS_LANGUAGE
+    assert kwargs["country"] == config.GOOGLE_NEWS_REGION
+
+
+def test_fetch_google_news_links_uses_explicit_language_region_when_given():
+    from app.gnews_collector import fetch_google_news_links
+
+    fake_gnews = MagicMock()
+    fake_gnews.get_news.return_value = []
+
+    with patch("app.gnews_collector.GNews", return_value=fake_gnews) as mock_gnews_cls:
+        fetch_google_news_links("鉄鋼", language="ja", region="JP")
+
+    mock_gnews_cls.assert_called_once()
+    _, kwargs = mock_gnews_cls.call_args
+    assert kwargs["language"] == "ja"
+    assert kwargs["country"] == "JP"
+
+
 def test_monkeypatch_keeps_raw_google_news_url():
     import gnews.gnews as gnews_module
     import gnews.utils.utils as gnews_utils

@@ -61,8 +61,17 @@ async def collect(query: str, **params: Any) -> List[Dict[str, Any]]:
     """
     max_results = int(params.get("max_results", 10))
     days = int(params.get("days", 7))
+    language = params.get("language")
+    region = params.get("region")
 
-    links = await asyncio.to_thread(fetch_google_news_links, query, max_results=max_results, days=days)
+    links = await asyncio.to_thread(
+        fetch_google_news_links,
+        query,
+        max_results=max_results,
+        days=days,
+        language=language,
+        region=region,
+    )
 
     dedup_cache = _get_dedup_cache()
     content_parser = _get_content_parser()

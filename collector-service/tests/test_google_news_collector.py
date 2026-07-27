@@ -110,6 +110,36 @@ async def test_collect_returns_empty_list_when_no_links_found():
     assert result == []
 
 
+async def test_collect_passes_language_region_from_params_to_fetch_google_news_links():
+    """collect() must forward language/region from its **params kwargs to
+    fetch_google_news_links, so a caller can override the deployment default
+    per-request (e.g. MacroIntelAgent querying 6 different regions)."""
+    with patch.object(
+        google_news_module, "fetch_google_news_links", return_value=[]
+    ) as mock_fetch:
+        await google_news_module.collect("鉄鋼業界", language="ja", region="JP")
+
+    mock_fetch.assert_called_once_with(
+        "鉄鋼業界", max_results=10, days=7, language="ja", region="JP"
+    )
+
+
+async def test_collect_omits_language_region_when_not_provided():
+    """Regression guard: omitting language/region from params must not pass
+    None explicitly in a way that breaks fetch_google_news_links's own
+    config-default fallback -- confirm the call site passes None through
+    (fetch_google_news_links's own `or` fallback handles the rest, already
+    covered by that function's own tests)."""
+    with patch.object(
+        google_news_module, "fetch_google_news_links", return_value=[]
+    ) as mock_fetch:
+        await google_news_module.collect("贵州茅台")
+
+    mock_fetch.assert_called_once_with(
+        "贵州茅台", max_results=10, days=7, language=None, region=None
+    )
+
+
 async def test_collect_full_pipeline_success_caches_the_article():
     cache_patch, mock_cache = _patch_dedup_cache()
 
