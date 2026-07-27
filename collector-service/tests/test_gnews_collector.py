@@ -27,14 +27,14 @@ def test_fetch_google_news_links_filters_by_day_window_and_strips_title_suffix()
     fake_gnews.get_news.return_value = [fresh, stale]
 
     with patch("app.gnews_collector.GNews", return_value=fake_gnews):
-        links = fetch_google_news_links("贵州茅台", max_results=10, days=7)
+        links = fetch_google_news_links("贵州茅台", candidate_limit=10, days=7)
 
     assert len(links) == 1
     assert links[0]["link"] == "https://news.google.com/rss/articles/fresh"
     assert links[0]["title"] == "Some Headline"
 
 
-def test_fetch_google_news_links_respects_max_results():
+def test_fetch_google_news_links_respects_candidate_limit():
     from app.gnews_collector import fetch_google_news_links
 
     items = [_raw_item(1, f"Headline {i}", f"https://news.google.com/rss/articles/{i}") for i in range(5)]
@@ -42,7 +42,7 @@ def test_fetch_google_news_links_respects_max_results():
     fake_gnews.get_news.return_value = items
 
     with patch("app.gnews_collector.GNews", return_value=fake_gnews):
-        links = fetch_google_news_links("贵州茅台", max_results=2, days=7)
+        links = fetch_google_news_links("贵州茅台", candidate_limit=2, days=7)
 
     assert len(links) == 2
 

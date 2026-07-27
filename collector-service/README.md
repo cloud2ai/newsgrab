@@ -11,11 +11,20 @@ and deduplicate via a local SQLite cache.
 `POST /jobs`
 
 ```json
-{"backend": "google_news", "query": "贵州茅台 600519", "params": {"max_results": 10, "days": 7}}
+{"backend": "google_news", "query": "贵州茅台 600519", "params": {"max_results": 10, "days": 7, "max_candidates": 20}}
 ```
 
 Returns `201 {"job_id": "..."}` immediately; collection runs in the
 background.
+
+`params.max_results` is how many articles you want back (default 10).
+`params.max_candidates` is a separate ceiling on how many raw Google News
+links this job will resolve/render/parse while trying to reach that count
+(default 20) -- not every candidate link survives the pipeline (dead
+links, SSRF-rejected redirects, pages that fail content extraction), so
+requesting `max_results: 5` doesn't mean only 5 links get tried. Raise
+`max_candidates` if you're seeing under-delivery for narrow queries;
+it's always clamped up to at least `max_results` even if you pass lower.
 
 `GET /jobs/{job_id}`
 
@@ -63,6 +72,9 @@ docker compose up -d
 curl -X POST http://localhost:18100/jobs -H "Content-Type: application/json" \
   -d '{"backend": "google_news", "query": "your query here"}'  # only if you uncommented the ports mapping
 ```
+
+For local development with live code reload, use `docker-compose.dev.yml`
+at the repo root instead -- see its top-of-file comment.
 
 ## Configuration
 

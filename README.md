@@ -115,12 +115,29 @@ through in `docker-compose.yml`:
 |---|---|---|
 | `GOOGLE_NEWS_LANGUAGE` / `GOOGLE_NEWS_REGION` | `en` / `US` | Default Google News edition; overridable per job via `params.language` / `params.region` |
 | `PLAYWRIGHT_SERVICE_URL` | `http://localhost:8000` | Where `collector-service` reaches `playwright-service` |
+| `DEFAULT_MAX_CANDIDATES` | `20` | Default ceiling on candidate links resolved per job; overridable per job via `params.max_candidates` (see `collector-service/README.md`) |
 | `HTTPS_PROXY` / `HTTP_PROXY` (+ lowercase) | unset | Optional egress proxy for both outbound Google News queries and browser navigation |
 | `NO_PROXY` / `no_proxy` | `localhost,127.0.0.1,::1,playwright-service,collector-service` | Keeps internal service-to-service traffic off the proxy |
 
 See [`collector-service/README.md`](collector-service/README.md) and
 [`playwright-service/README.md`](playwright-service/README.md) for the full
 list, including dedup-cache TTL and browser stealth details.
+
+## Development
+
+```bash
+docker compose -f docker-compose.dev.yml up -d --build
+```
+
+`docker-compose.dev.yml` builds the same images as `docker-compose.yml`,
+but bind-mounts each service's `app/` directory over the image and runs
+uvicorn with `--reload`, so edits on the host take effect immediately --
+no rebuild, no manual restart. Ports are published to the host by default
+(`18000` for `playwright-service`, `18100` for `collector-service`), since
+this file exists specifically for local iteration.
+
+Found a bug or want to propose a change? Open an issue or a pull request
+against this repo.
 
 ## Design doc
 

@@ -46,7 +46,7 @@ def _parse_published_date(published_date: str) -> Optional[datetime]:
 
 def fetch_google_news_links(
     keyword: str,
-    max_results: int = 10,
+    candidate_limit: int = 10,
     days: int = 7,
     language: Optional[str] = None,
     region: Optional[str] = None,
@@ -55,6 +55,12 @@ def fetch_google_news_links(
 
     Synchronous/blocking (gnews uses `requests` internally) -- callers in
     async code must wrap this in `asyncio.to_thread()`.
+
+    `candidate_limit` is a ceiling on how many raw candidate links to
+    return, not the number of articles the caller ultimately wants --
+    resolving/rendering/parsing each link can fail downstream, so callers
+    generally pass a `candidate_limit` higher than their desired article
+    count (see `app.collectors.google_news.collect`).
 
     Returns a list of {link, title, published_date} dicts, filtered to
     articles published within the last `days` days. Returns an empty list
@@ -71,7 +77,7 @@ def fetch_google_news_links(
         g = GNews(
             language=language or config.GOOGLE_NEWS_LANGUAGE,
             country=region or config.GOOGLE_NEWS_REGION,
-            max_results=max(max_results * config.REDUNDANT_RATE, config.MAX_RESULTS),
+            max_results=max(candidate_limit * config.REDUNDANT_RATE, config.MAX_RESULTS),
             exclude_websites=config.EXCLUDE_NEWS_SOURCE,
         )
         raw_items = g.get_news(keyword) or []
@@ -96,7 +102,7 @@ def fetch_google_news_links(
             "title": title,
             "published_date": item.get("published date", ""),
         })
-        if len(links) >= max_results:
+        if len(links) >= candidate_limit:
             break
 
     logger.info("[gnews_collector] %r -> %s links", keyword, len(links))

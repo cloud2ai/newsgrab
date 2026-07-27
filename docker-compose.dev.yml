@@ -1,0 +1,72 @@
+# Local development stack: builds the same images as docker-compose.yml,
+# but bind-mounts each service's app/ directory over the image and runs
+# uvicorn with --reload, so editing code on the host is picked up
+# immediately -- no rebuild, no manual container restart. Ports are
+# published to the host by default (unlike docker-compose.yml) since this
+# file exists specifically for local iteration.
+#
+# Usage:
+#   docker compose -f docker-compose.dev.yml up -d --build
+#   docker compose -f docker-compose.dev.yml logs -f collector-service
+#   docker compose -f docker-compose.dev.yml down
+name: newsgrab-dev
+
+services:
+  playwright-service:
+    build:
+      context: ./playwright-service
+      args:
+        USE_MIRROR: ${USE_MIRROR:-true}
+    container_name: newsgrab-playwright-service-dev
+    restart: unless-stopped
+    environment:
+      UVICORN_RELOAD: "true"
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      https_proxy: ${https_proxy:-}
+      http_proxy: ${http_proxy:-}
+      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,::1,playwright-service,collector-service}
+      no_proxy: ${no_proxy:-localhost,127.0.0.1,::1,playwright-service,collector-service}
+    volumes:
+      # Live code mount: edits under playwright-service/app on the host
+      # reach the container immediately; uvicorn --reload (entrypoint.sh)
+      # picks them up on its own.
+      - ./playwright-service/app:/app/app
+    networks:
+      - newsgrab-dev-internal
+    ports:
+      - "${PLAYWRIGHT_SERVICE_DEV_PORT:-18000}:8000"
+
+  collector-service:
+    build:
+      context: ./collector-service
+    container_name: newsgrab-collector-service-dev
+    restart: unless-stopped
+    environment:
+      UVICORN_RELOAD: "true"
+      PLAYWRIGHT_SERVICE_URL: http://playwright-service:8000
+      GOOGLE_NEWS_LANGUAGE: ${GOOGLE_NEWS_LANGUAGE:-}
+      GOOGLE_NEWS_REGION: ${GOOGLE_NEWS_REGION:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      https_proxy: ${https_proxy:-}
+      http_proxy: ${http_proxy:-}
+      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,::1,playwright-service,collector-service}
+      no_proxy: ${no_proxy:-localhost,127.0.0.1,::1,playwright-service,collector-service}
+    depends_on:
+      - playwright-service
+    volumes:
+      # Same live-reload approach as playwright-service above.
+      - ./collector-service/app:/app/app
+      - collector-dedup-cache-dev:/data
+    networks:
+      - newsgrab-dev-internal
+    ports:
+      - "${COLLECTOR_SERVICE_DEV_PORT:-18100}:8000"
+
+networks:
+  newsgrab-dev-internal:
+    driver: bridge
+
+volumes:
+  collector-dedup-cache-dev:

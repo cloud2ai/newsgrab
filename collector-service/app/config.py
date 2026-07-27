@@ -14,6 +14,16 @@ GOOGLE_NEWS_REGION = os.environ.get("GOOGLE_NEWS_REGION") or "US"
 EXCLUDE_NEWS_SOURCE = ["zdnet.com"]
 REDUNDANT_RATE = 3
 MAX_RESULTS = 20
+
+# Default ceiling on candidate links a google_news job resolves/renders
+# while trying to reach its requested `max_results` article count (see
+# app.collectors.google_news.collect). Distinct from MAX_RESULTS above,
+# which floors gnews's own internal query size against library-level
+# losses (duplicates, excluded sources) -- this constant instead absorbs
+# losses further down newsgrab's own pipeline (resolve/SSRF/parse
+# failures), and is overridable per job via params.max_candidates.
+DEFAULT_MAX_CANDIDATES = int(os.environ.get("DEFAULT_MAX_CANDIDATES") or 20)
+
 GNEWS_FETCH_TIMEOUT = 30
 MINIMAL_CONTENT_LENGTH = 200
 

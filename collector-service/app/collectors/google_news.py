@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
 from app.collectors.base import COLLECTORS
-from app.config import DEDUP_CACHE_PATH, PLAYWRIGHT_RESOLVE_TIMEOUT_MS
+from app.config import DEDUP_CACHE_PATH, DEFAULT_MAX_CANDIDATES, PLAYWRIGHT_RESOLVE_TIMEOUT_MS
 from app.content_parser import ContentParser
 from app.dedup_cache import DedupCache
 from app.gnews_collector import fetch_google_news_links
@@ -58,16 +58,28 @@ async def collect(query: str, **params: Any) -> List[Dict[str, Any]]:
     out, that's treated as a job failure: raises `RuntimeError` so callers
     (see `app.main._run_job`) mark the job `failed` instead of `done` + `[]`,
     per design spec section 6.
+
+    `max_results` (default 10) is the number of articles the caller wants
+    back. `max_candidates` (default `config.DEFAULT_MAX_CANDIDATES`, 20) is
+    a separate ceiling on how many raw Google News links this job is
+    willing to resolve/render/parse while trying to reach that count --
+    they're decoupled because not every candidate link survives the
+    pipeline (Google News itself may not have `max_results` worth of live,
+    parseable articles for a given query). `max_candidates` is always
+    raised to at least `max_results` if given lower, since asking for
+    fewer candidates than the desired result count would just guarantee
+    under-delivery.
     """
     max_results = int(params.get("max_results", 10))
     days = int(params.get("days", 7))
     language = params.get("language")
     region = params.get("region")
+    max_candidates = max(int(params.get("max_candidates", DEFAULT_MAX_CANDIDATES)), max_results)
 
     links = await asyncio.to_thread(
         fetch_google_news_links,
         query,
-        max_results=max_results,
+        candidate_limit=max_candidates,
         days=days,
         language=language,
         region=region,
@@ -78,6 +90,9 @@ async def collect(query: str, **params: Any) -> List[Dict[str, Any]]:
     articles: List[Dict[str, Any]] = []
 
     for link in links:
+        if len(articles) >= max_results:
+            break
+
         raw_link = link["link"]
 
         cached = dedup_cache.get_by_raw_link(raw_link)
