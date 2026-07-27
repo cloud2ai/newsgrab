@@ -1,6 +1,17 @@
 #!/bin/sh
 set -eu
 
+# `docker restart` (or any restart that doesn't recreate the container)
+# reuses the same filesystem, so a lock file left behind by the previous
+# Xvfb/Chromium process is still there when this script runs again --
+# observed in practice: Xvfb refused to (re)bind display :99 ("Server is
+# already active for display 99"), which cascaded into Chromium failing
+# to find a display and the whole container never becoming healthy again
+# until it was recreated from scratch. Clear both proactively so a plain
+# restart is as reliable as a fresh container.
+rm -f /tmp/.X99-lock
+rm -f /tmp/chrome-data/Singleton*
+
 Xvfb :99 -screen 0 1920x1080x24 &
 
 # Chrome does not read HTTP_PROXY/HTTPS_PROXY the way curl/requests do -- it
