@@ -62,6 +62,9 @@ docker compose up -d playwright-service
 curl http://localhost:18000/healthz  # only if you uncommented the ports mapping in docker-compose.yml
 ```
 
+For local development with live code reload, use `docker-compose.dev.yml`
+at the repo root instead -- see its top-of-file comment.
+
 **Build-time mirror configuration:** The Dockerfile defaults to `USE_MIRROR=true`, which routes both `apt-get` and `pip install` through Tsinghua mirrors (`mirrors.tuna.tsinghua.edu.cn` for apt, `pypi.tuna.tsinghua.edu.cn` for pip) during the Docker build. This default was chosen for faster builds inside mainland China, as this project's development sandbox experienced very slow and unreliable direct connectivity to `deb.debian.org` and `files.pythonhosted.org`. If you are building this image in a region with good connectivity to official upstream sources, or prefer to use them directly, pass `--build-arg USE_MIRROR=false` to the build command to disable the mirrors.
 
 ## Runtime proxy support

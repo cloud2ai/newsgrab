@@ -120,7 +120,7 @@ async def test_collect_passes_language_region_from_params_to_fetch_google_news_l
         await google_news_module.collect("鉄鋼業界", language="ja", region="JP")
 
     mock_fetch.assert_called_once_with(
-        "鉄鋼業界", max_results=10, days=7, language="ja", region="JP"
+        "鉄鋼業界", candidate_limit=20, days=7, language="ja", region="JP"
     )
 
 
@@ -136,8 +136,61 @@ async def test_collect_omits_language_region_when_not_provided():
         await google_news_module.collect("贵州茅台")
 
     mock_fetch.assert_called_once_with(
-        "贵州茅台", max_results=10, days=7, language=None, region=None
+        "贵州茅台", candidate_limit=20, days=7, language=None, region=None
     )
+
+
+async def test_collect_passes_max_candidates_from_params_as_candidate_limit():
+    """A caller asking for few results (e.g. max_results=5) but expecting
+    Google News to miss some links should be able to raise the candidate
+    ceiling explicitly via max_candidates."""
+    with patch.object(
+        google_news_module, "fetch_google_news_links", return_value=[]
+    ) as mock_fetch:
+        await google_news_module.collect("贵州茅台", max_results=5, max_candidates=50)
+
+    mock_fetch.assert_called_once_with(
+        "贵州茅台", candidate_limit=50, days=7, language=None, region=None
+    )
+
+
+async def test_collect_raises_candidate_limit_to_at_least_max_results():
+    """max_candidates must never end up lower than max_results -- that would
+    guarantee under-delivery (e.g. asking for 30 results with only 10
+    candidates fetched)."""
+    with patch.object(
+        google_news_module, "fetch_google_news_links", return_value=[]
+    ) as mock_fetch:
+        await google_news_module.collect("贵州茅台", max_results=30, max_candidates=10)
+
+    mock_fetch.assert_called_once_with(
+        "贵州茅台", candidate_limit=30, days=7, language=None, region=None
+    )
+
+
+async def test_collect_stops_once_max_results_articles_are_collected():
+    """collect() must stop working through candidate links once it already
+    has max_results articles, even if more candidates remain -- both to
+    respect the caller's desired count and to avoid unnecessary
+    playwright-service load."""
+    cache_patch, mock_cache = _patch_dedup_cache()
+
+    with patch.object(google_news_module, "fetch_google_news_links", return_value=[
+        {"link": "https://news.google.com/rss/1", "title": "t1", "published_date": "d1"},
+        {"link": "https://news.google.com/rss/2", "title": "t2", "published_date": "d2"},
+        {"link": "https://news.google.com/rss/3", "title": "t3", "published_date": "d3"},
+    ]), cache_patch, \
+         patch.object(google_news_module, "resolve_and_render", new=AsyncMock(side_effect=[
+             {"final_url": "https://real-site.example/a", "html": "<html>a</html>"},
+             {"final_url": "https://real-site.example/b", "html": "<html>b</html>"},
+         ])) as mock_resolve, \
+         patch.object(google_news_module, "is_safe_url", return_value=True), \
+         patch.object(google_news_module, "_get_content_parser") as mock_get_parser:
+        mock_get_parser.return_value.parse.return_value = {"title": "T", "content": "full body text"}
+        result = await google_news_module.collect("贵州茅台", max_results=2, max_candidates=3)
+
+    assert len(result) == 2
+    assert mock_resolve.call_count == 2
 
 
 async def test_collect_full_pipeline_success_caches_the_article():
