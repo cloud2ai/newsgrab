@@ -1,3 +1,18 @@
 # Local dev override (e.g. exposing ports for host-side testing) --
 # never committed, docker-compose merges it automatically if present.
 docker-compose.override.yml
+
+# Python build/test artifacts (both services)
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+
+# collector-service's local SQLite dedup cache (DEDUP_CACHE_PATH default);
+# the container's copy lives in the collector-dedup-cache named volume.
+collector-service/data/
+
+# Editors / OS
+.DS_Store
+.vscode/
+.idea/
