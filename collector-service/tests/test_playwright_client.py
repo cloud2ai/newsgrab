@@ -70,3 +70,23 @@ async def test_resolve_and_render_omits_leave_prefix_when_not_given():
 
     call_kwargs = mock_client.post.call_args.kwargs
     assert "leave_prefix" not in call_kwargs["json"]["params"]
+
+
+async def test_resolve_and_render_disables_env_proxy_trust():
+    """Regression test: this call must never honor ambient HTTP(S)_PROXY/
+    NO_PROXY env vars, since it is always an internal same-network call to
+    playwright-service. httpx defaults to trust_env=True, which made this
+    call's success depend on the operator's NO_PROXY including
+    "playwright-service" -- a real deployment hit this exact failure when an
+    ambient shell NO_PROXY (set for unrelated reasons) silently overrode
+    docker-compose.yml's own NO_PROXY default, causing every article fetch
+    to fail with a 502 from the external proxy trying to reach an internal
+    container hostname."""
+    fake_response = MagicMock()
+    fake_response.raise_for_status = MagicMock()
+    fake_response.json.return_value = {"success": True, "result": {"final_url": "x", "html": "y"}, "error": None}
+    mock_client = _make_mock_client(fake_response)
+    with patch("app.playwright_client.httpx.AsyncClient", return_value=mock_client) as mock_cls:
+        await resolve_and_render("https://news.google.com/rss/x", timeout_ms=20000)
+
+    assert mock_cls.call_args.kwargs["trust_env"] is False

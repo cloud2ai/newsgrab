@@ -211,9 +211,34 @@ async def test_collect_full_pipeline_success_caches_the_article():
     assert result[0]["title"] == "Real Title"
     assert result[0]["url"] == "https://real-site.example/a"
     assert result[0]["source"] == "real-site.example"
+    assert result[0]["images"] == []
     mock_cache.remember.assert_called_once_with(
         "https://real-site.example/a", "https://news.google.com/rss/1", result[0]
     )
+
+
+async def test_collect_carries_parsed_images_into_the_article():
+    """The content parser's already-filtered `images` list (see
+    ContentParser.parse/image_filter.filter_images) must flow through into
+    the final article dict -- it used to be silently dropped here."""
+    cache_patch, mock_cache = _patch_dedup_cache()
+
+    with patch.object(google_news_module, "fetch_google_news_links", return_value=[
+        {"link": "https://news.google.com/rss/1", "title": "t1", "published_date": "d1"}
+    ]), cache_patch, \
+         patch.object(google_news_module, "resolve_and_render", new=AsyncMock(return_value={
+             "final_url": "https://real-site.example/a", "html": "<html>content</html>",
+         })), \
+         patch.object(google_news_module, "is_safe_url", return_value=True), \
+         patch.object(google_news_module, "_get_content_parser") as mock_get_parser:
+        mock_get_parser.return_value.parse.return_value = {
+            "title": "Real Title",
+            "content": "full body text",
+            "images": ["https://real-site.example/photos/real.jpg"],
+        }
+        result = await google_news_module.collect("贵州茅台")
+
+    assert result[0]["images"] == ["https://real-site.example/photos/real.jpg"]
 
 
 async def test_collect_real_url_cache_hit_links_raw_url_without_reparsing():
