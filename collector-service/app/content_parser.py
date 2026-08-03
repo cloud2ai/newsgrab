@@ -3,6 +3,7 @@ import logging
 from typing import Any, Dict, Optional
 
 from app.content_fetchers import GNEFetcher, ReadabilityFetcher, TrafilaturaFetcher
+from app.image_filter import filter_images
 
 logger = logging.getLogger(__name__)
 
@@ -39,4 +40,5 @@ class ContentParser:
             "[ContentParser] selected %s (%s chars) from %s candidates for %s",
             best_name, best_len, len(results), url,
         )
+        best_data["images"] = filter_images(best_data.get("images") or [], url)
         return best_data

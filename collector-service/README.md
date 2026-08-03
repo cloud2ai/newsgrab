@@ -29,13 +29,23 @@ it's always clamped up to at least `max_results` even if you pass lower.
 `GET /jobs/{job_id}`
 
 ```json
-{"job_id": "...", "status": "done", "result": [{"title": "...", "content": "...", "url": "...", "source": "...", "published_date": "..."}], "error": null}
+{"job_id": "...", "status": "done", "result": [{"title": "...", "content": "...", "url": "...", "source": "...", "published_date": "...", "images": ["https://example.com/photos/real.jpg"]}], "error": null}
 ```
 
 `status` is one of `pending`/`running`/`done`/`failed`. Unknown `job_id` →
 `404`. Job state is in-memory only -- a service restart loses all jobs;
 callers must re-submit and treat this as a stateless job queue, not a
 durable work-tracking system.
+
+`images` is a best-effort list of in-article photo URLs (from GNE's
+extraction, when it's the fetcher that wins), filtered heuristically --
+resolved to absolute URLs, restricted to plausible photo extensions, and
+stripped of anything that looks like a logo/icon/avatar/tracking pixel by
+filename (see `app/image_filter.py`). It's URL-only: newsgrab never
+downloads the images themselves, so this can't catch everything (e.g. a
+real photo served from a path containing "icon"), and it can be empty even
+when the source page has real photos, if trafilatura/readability-lxml won
+the fetcher fallback instead of GNE.
 
 ## Adding a new backend
 

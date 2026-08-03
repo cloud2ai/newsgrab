@@ -130,6 +130,7 @@ async def collect(query: str, **params: Any) -> List[Dict[str, Any]]:
             "url": real_url,
             "source": urlparse(real_url).netloc,
             "published_date": link.get("published_date"),
+            "images": parsed.get("images") or [],
         }
         dedup_cache.remember(real_url, raw_link, article)
         articles.append(article)

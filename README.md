@@ -97,7 +97,8 @@ Poll for the result:
 curl http://localhost:18100/jobs/<job_id>
 # -> {"job_id": "...", "status": "done", "result": [
 #      {"title": "...", "content": "...", "url": "...",
-#       "source": "example.com", "published_date": "..."},
+#       "source": "example.com", "published_date": "...",
+#       "images": ["https://example.com/photos/real.jpg", ...]},
 #      ...
 #    ], "error": null}
 ```

@@ -43,3 +43,20 @@ def test_parse_ignores_empty_content():
          patch.object(parser.trafilatura_fetcher, "fetch", return_value=None), \
          patch.object(parser.readability_fetcher, "fetch", return_value=None):
         assert parser.parse("<html></html>", "https://example.com/a") is None
+
+
+def test_parse_filters_images_of_the_selected_result():
+    parser = ContentParser()
+    result = {
+        "content": LONG_CONTENT,
+        "title": "with images",
+        "author": "",
+        "publish_time": "",
+        "images": ["https://example.com/logo.png", "https://example.com/photos/real.jpg"],
+    }
+    with patch.object(parser.gne_fetcher, "fetch", return_value=result), \
+         patch.object(parser.trafilatura_fetcher, "fetch", return_value=None), \
+         patch.object(parser.readability_fetcher, "fetch", return_value=None):
+        parsed = parser.parse("<html></html>", "https://example.com/a")
+
+    assert parsed["images"] == ["https://example.com/photos/real.jpg"]
